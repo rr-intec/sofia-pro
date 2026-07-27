@@ -467,6 +467,41 @@ async def reactivar_lead(
     }
 
 
+@router.get("/conversaciones/sin-concluir")
+async def conversaciones_sin_concluir(
+    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+) -> dict[str, Any]:
+    """Conversaciones PENDIENTES: aquellas cuyo último mensaje es del prospecto y nadie
+    ha respondido. Se separa quién debe responder: Sofía (bot activo) o Lily (bot
+    apagado, chat que ella atiende)."""
+    _check_admin(x_admin_key)
+    import asyncpg
+
+    conn = await asyncpg.connect(get_settings().supabase_db_url)
+    try:
+        row = await conn.fetchrow(
+            """
+            with ult as (
+              select distinct on (session_id) session_id, role
+              from sofia_messages order by session_id, created_at desc)
+            select
+              count(*) filter (where u.role='user' and c.bot_activo=true)  as esperando_sofia,
+              count(*) filter (where u.role='user' and c.bot_activo=false) as esperando_lily
+            from ult u
+            join sofia_conversations c on c.session_id = u.session_id
+            """
+        )
+    finally:
+        await conn.close()
+    esperando_sofia = int(row["esperando_sofia"] or 0)
+    esperando_lily = int(row["esperando_lily"] or 0)
+    return {
+        "total": esperando_sofia + esperando_lily,
+        "esperando_sofia": esperando_sofia,
+        "esperando_lily": esperando_lily,
+    }
+
+
 @router.get("/seguimientos/plan")
 async def seguimientos_plan(
     x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
