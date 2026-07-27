@@ -112,6 +112,9 @@ class Settings(BaseSettings):
     # dry-run está validado. `cap_tick` limita envíos por pasada (goteo, tick=5 min).
     seguimientos_activo: bool = False
     seguimientos_cap_tick: int = Field(default=8, ge=1, le=50)
+    # Tope de toques (1 y 2) enviados por DÍA (hora de México). 0 = sin límite diario.
+    # Sirve para no saturar a Lily (ej. arrancar el backlog a media máquina).
+    seguimientos_cap_dia: int = Field(default=0, ge=0, le=1000)
     # Ventana horaria (hora local de México) en que se PUEDEN enviar toques. Fuera de
     # esto no se manda nada (no escribir a papás de madrugada/noche).
     seguimientos_hora_inicio: int = Field(default=9, ge=0, le=23)

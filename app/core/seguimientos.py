@@ -236,6 +236,18 @@ async def ejecutar(enviar: bool, cap: int) -> list[dict]:
     reporte: list[dict] = []
     try:
         ahora = datetime.now(timezone.utc)
+        # Tope diario: cuántos toques (1/2) ya salieron HOY (fecha de México).
+        if enviar and settings.seguimientos_cap_dia > 0:
+            hoy = await conn.fetchval(
+                "select count(*) from lead_seguimientos where toque in (1,2) "
+                "and (enviado_at at time zone 'America/Mexico_City')::date "
+                "= (now() at time zone 'America/Mexico_City')::date"
+            )
+            restante_dia = max(0, settings.seguimientos_cap_dia - int(hoy or 0))
+            cap = min(cap, restante_dia)
+            if cap == 0:
+                log.info("seguimientos: tope diario alcanzado", extra={"hoy": hoy})
+                return [{"accion": "TOPE_DIARIO_ALCANZADO", "hoy": int(hoy or 0)}]
         acciones = await planear(conn, ahora)
         evo = get_evolution()
         enviados = 0
