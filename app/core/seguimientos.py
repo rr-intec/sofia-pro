@@ -56,8 +56,12 @@ CADENCIAS = {
 }
 # Si al momento del primer toque el lead lleva MÁS de esto frío, va por vía rápida.
 UMBRAL_RECUPERACION_H = 96
-# Nunca tocar antes de este silencio (protege leads que apenas respondieron).
+# Silencio mínimo antes del primer toque en un chat de SOFÍA (bot activo).
 FRIO_MINIMO_H = 48
+# Silencio mínimo MUCHO más estricto para un chat que atendía LILY (bot apagado): no
+# basta con que esté callado, tiene que estar CLARAMENTE abandonado. Una pausa natural
+# en un proceso que Lily lleva (esperando docs, que el papá decida) NO es un lead frío.
+FRIO_MINIMO_LILY_H = 120  # 5 días
 
 STAGES_SEGUIBLES = ("contacto_inicial", "pendiente_agendar")
 
@@ -108,8 +112,7 @@ async def planear(conn: asyncpg.Connection, ahora: datetime) -> list[Accion]:
         where l.stage::text = any($1::text[])
           and l.conversation_session_id is not null
           and not exists (
-            select 1 from appointments a
-            where a.lead_id = l.id and a.status in ('pendiente','confirmada'))
+            select 1 from appointments a where a.lead_id = l.id)
         """,
         list(STAGES_SEGUIBLES),
     )
@@ -155,9 +158,12 @@ async def planear(conn: asyncpg.Connection, ahora: datetime) -> list[Accion]:
         else:
             cad = hechos[1]["cadencia"] if 1 in hechos else "normal"
 
-        # ¿Está DEBIDO el siguiente toque?
+        # ¿Está DEBIDO el siguiente toque? El silencio mínimo es MUCHO mayor si el chat
+        # lo atendía Lily (bot apagado): así solo entramos cuando está claramente
+        # abandonado, no en una pausa de un proceso que ella lleva.
         if siguiente == 1:
-            if horas_frio < FRIO_MINIMO_H:
+            frio_min = FRIO_MINIMO_H if r["bot_activo"] else FRIO_MINIMO_LILY_H
+            if horas_frio < frio_min:
                 continue
         else:
             prev = hechos[siguiente - 1]
