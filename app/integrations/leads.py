@@ -33,12 +33,14 @@ VALID_NIVELES = frozenset({"maternal", "kinder", "primaria", "secundaria", "prep
 VALID_STAGES = frozenset(
     {
         "contacto_inicial",
-        "pendiente_agendar",
+        "seguimiento_1",
+        "seguimiento_2",
+        "seguimiento_3",
         "cita_agendada",
         "seguimiento_post_visita",
         "en_proceso",
-        "cerrado_inscrito",
-        "cerrado_perdido",
+        "cierre_ganado",
+        "cierre_perdido",
     }
 )
 
@@ -241,18 +243,20 @@ async def advance_stage_if_lower(
     """Avanza el stage solo si el actual está antes en el pipeline.
 
     Pipeline order:
-      contacto_inicial < pendiente_agendar < cita_agendada
-        < seguimiento_post_visita < en_proceso < cerrado_inscrito
+      contacto_inicial < seguimiento_1 < seguimiento_2 < seguimiento_3
+        < cita_agendada < seguimiento_post_visita < en_proceso < cierre_ganado
 
-    `cerrado_perdido` queda fuera del orden (no se "avanza" desde ahí automáticamente).
+    `cierre_perdido` queda fuera del orden (no se "avanza" desde ahí automáticamente).
     """
     order = [
         "contacto_inicial",
-        "pendiente_agendar",
+        "seguimiento_1",
+        "seguimiento_2",
+        "seguimiento_3",
         "cita_agendada",
         "seguimiento_post_visita",
         "en_proceso",
-        "cerrado_inscrito",
+        "cierre_ganado",
     ]
     if current_stage not in order or target_stage not in order:
         return False

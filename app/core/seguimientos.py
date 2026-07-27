@@ -71,7 +71,26 @@ FRIO_MINIMO_H = 48
 # en un proceso que Lily lleva (esperando docs, que el papá decida) NO es un lead frío.
 FRIO_MINIMO_LILY_H = 120  # 5 días
 
-STAGES_SEGUIBLES = ("contacto_inicial", "pendiente_agendar")
+STAGES_SEGUIBLES = ("contacto_inicial", "seguimiento_1", "seguimiento_2", "seguimiento_3")
+
+# El toque N mueve el lead a la etapa "seguimiento_N" del pipeline (Gaby 2026-07-27).
+STAGE_POR_TOQUE = {1: "seguimiento_1", 2: "seguimiento_2", 3: "seguimiento_3"}
+# Etapas ANTERIORES desde las que sí se puede avanzar a cada seguimiento (no jala atrás).
+_ANTERIORES_A = {
+    1: ["contacto_inicial"],
+    2: ["contacto_inicial", "seguimiento_1"],
+    3: ["contacto_inicial", "seguimiento_1", "seguimiento_2"],
+}
+
+
+async def _avanzar_stage(conn: asyncpg.Connection, sid: str, toque: int) -> None:
+    """Mueve el lead a 'seguimiento_N' al mandar el toque N (solo si está en una etapa
+    anterior — nunca lo jala hacia atrás)."""
+    await conn.execute(
+        "update leads set stage=$2, updated_at=now() "
+        "where conversation_session_id=$1 and stage::text = any($3::text[])",
+        sid, STAGE_POR_TOQUE[toque], _ANTERIORES_A[toque],
+    )
 
 
 @dataclass
@@ -286,6 +305,7 @@ async def ejecutar(enviar: bool, cap: int) -> list[dict]:
                         "on conflict do nothing",
                         a.session_id, a.cadencia,
                     )
+                    await _avanzar_stage(conn, a.session_id, 3)  # → seguimiento_3
                 reporte.append(item)
                 continue
             if enviados >= cap:
@@ -303,6 +323,7 @@ async def ejecutar(enviar: bool, cap: int) -> list[dict]:
                     "on conflict do nothing",
                     a.session_id, a.toque, a.cadencia,
                 )
+                await _avanzar_stage(conn, a.session_id, a.toque)  # → seguimiento_1/2
                 # Si el chat estaba en manos de Lily (bot apagado) y ya está FRÍO, Sofía
                 # retoma la re-conexión para quitarle carga a Lily. Si Lily lo quiere de
                 # vuelta, su próximo mensaje lo reclama solo (auto-handoff). No aplica al

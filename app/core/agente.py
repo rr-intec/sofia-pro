@@ -652,26 +652,21 @@ async def _nombre_contacto_wa(session_id: str) -> str | None:
 
 async def _asegurar_lead_pipeline(session_id: str, canal: Canal, turn_number: int) -> None:
     """Mete el prospecto al pipeline (CRM): crea el lead en 'contacto_inicial' al
-    conversar y lo mueve a 'pendiente_agendar' cuando ya hubo conversación pero aún
-    no agenda. Best-effort — solo WhatsApp (prospectos reales). Feedback Gaby."""
+    conversar. Ahí se queda hasta que agende (→ 'cita_agendada') o reciba un toque de
+    seguimiento (→ 'seguimiento_1/2/3', lo mueve la automatización). Best-effort — solo
+    WhatsApp (prospectos reales). Pipeline nuevo de Gaby (2026-07-27)."""
     if canal != Canal.WHATSAPP:
         return
     try:
         lead = await get_lead_by_session(session_id)
         if lead is None:
-            lead_id = await create_lead(
+            await create_lead(
                 parent_name=(await _nombre_contacto_wa(session_id)) or "Prospecto",
                 channel=canal.value,
                 conversation_session_id=session_id,
                 parent_phone=_telefono_de_session(session_id),
                 notes="Lead creado por Sofía al iniciar la conversación.",
             )
-            stage = "contacto_inicial"
-        else:
-            lead_id, stage = lead.id, lead.stage
-        # Ya conversó (2+ turnos) pero sigue en contacto inicial → pendiente por agendar.
-        if lead_id and turn_number >= 2 and stage == "contacto_inicial":
-            await advance_stage_if_lower(lead_id, stage, "pendiente_agendar")
     except Exception as exc:  # noqa: BLE001
         log.warning("asegurar lead pipeline falló", extra={"error": str(exc), "session": session_id})
 
@@ -965,7 +960,7 @@ async def procesar_turno_agente(
     if canal == Canal.WHATSAPP:
         final_text = _a_formato_whatsapp(final_text)
 
-    # Mete/actualiza el prospecto en el pipeline (contacto_inicial → pendiente_agendar).
+    # Mete/actualiza el prospecto en el pipeline (lo crea en contacto_inicial).
     await _asegurar_lead_pipeline(session_id, canal, turn_number)
 
     latency_ms = int((time.monotonic() - t0) * 1000)
