@@ -198,13 +198,31 @@ _MENSAJE_VALOR = (
 
 _RE_PRECIO_MENSUAL = re.compile(r"\$\s?[\d.,]+\s*(al mes|mensual|/\s?mes)", re.IGNORECASE)
 
+# Tercer beat tras el precio: invitación cálida y CONCRETA a la visita. Va SIEMPRE al
+# final (después del mensaje de valor) para que el precio nunca sea el último mensaje.
+# El análisis de conversaciones (18-24 jul) mostró que el 100% de quienes preguntaban
+# precio se iban sin agendar porque Sofía cerraba pasiva ("¿alguna otra duda?").
+_INVITACION_VISITA = (
+    "La mejor forma de sentir si Maple es para tu hijo es vivirlo en persona 🍁 "
+    "¿Te gustaría que te comparta los días y horarios que tenemos para una visita?"
+)
+
 
 def _anexar_mensaje_valor(texto: str) -> str:
-    """Si el mensaje da una colegiatura mensual y no trae ya el mensaje de valor, lo
-    anexa (garantiza el 'precio → mensaje de valor' que pidieron Lili/Gaby)."""
-    if _RE_PRECIO_MENSUAL.search(texto) and "aprenderá a crecer" not in texto:
-        return texto.rstrip() + "\n\n" + _MENSAJE_VALOR
-    return texto
+    """Si el mensaje da una colegiatura mensual, garantiza la secuencia de cierre que
+    pidieron Lili/Gaby: precio → mensaje de valor → invitación concreta a la visita.
+    Ambos se anexan por código para que el precio NUNCA quede como último mensaje."""
+    if not _RE_PRECIO_MENSUAL.search(texto):
+        return texto
+    out = texto.rstrip()
+    if "aprenderá a crecer" not in out:
+        out += "\n\n" + _MENSAJE_VALOR
+    # Invitación a la visita como cierre. Idempotente y se omite si el texto ya trae
+    # una invitación concreta (para no duplicar cuando el modelo ya la hizo bien).
+    ya_invita = "días y horarios" in out or "para una visita" in out.lower()
+    if not ya_invita:
+        out += "\n\n" + _INVITACION_VISITA
+    return out
 
 
 def _a_formato_whatsapp(texto: str) -> str:
