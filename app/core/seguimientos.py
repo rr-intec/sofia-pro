@@ -106,7 +106,6 @@ async def planear(conn: asyncpg.Connection, ahora: datetime) -> list[Accion]:
         join sofia_conversations c on c.session_id = l.conversation_session_id
         left join lastmsg lm on lm.session_id = l.conversation_session_id
         where l.stage::text = any($1::text[])
-          and c.bot_activo = true
           and l.conversation_session_id is not null
           and not exists (
             select 1 from appointments a
@@ -284,6 +283,15 @@ async def ejecutar(enviar: bool, cap: int) -> list[dict]:
                     "insert into lead_seguimientos(session_id,toque,cadencia) values($1,$2,$3) "
                     "on conflict do nothing",
                     a.session_id, a.toque, a.cadencia,
+                )
+                # Si el chat estaba en manos de Lily (bot apagado) y ya está FRÍO, Sofía
+                # retoma la re-conexión para quitarle carga a Lily. Si Lily lo quiere de
+                # vuelta, su próximo mensaje lo reclama solo (auto-handoff). No aplica al
+                # Toque 3 (ese es de Lili).
+                await conn.execute(
+                    "update sofia_conversations set bot_activo=true, atendido_por='bot' "
+                    "where session_id=$1 and bot_activo=false",
+                    a.session_id,
                 )
             enviados += 1
             reporte.append(item)
