@@ -164,6 +164,25 @@ async def sync_contactos() -> None:
         log.info("pushNames sincronizados", extra={"n": n})
 
 
+async def _tick_seguimientos() -> None:
+    """Pasada de seguimientos automáticos (3 toques). No hace nada si el flag está
+    apagado. Con goteo (cap por tick) para no estallar."""
+    from app.config import get_settings
+    from app.core.seguimientos import ejecutar
+
+    s = get_settings()
+    if not s.seguimientos_activo:
+        return
+    rep = await ejecutar(enviar=True, cap=s.seguimientos_cap_tick)
+    enviados = [r for r in rep if r["accion"] == "ENVIAR"]
+    lili = [r for r in rep if r["accion"] == "MARCAR_LILI"]
+    if enviados or lili:
+        log.info(
+            "seguimientos: pasada",
+            extra={"enviados": len(enviados), "marcados_lili": len(lili)},
+        )
+
+
 async def run_scheduler() -> None:
     """Loop principal del programador. Se cancela en el shutdown."""
     log.info("scheduler iniciado (recordatorios + sync de contactos)")
@@ -171,6 +190,7 @@ async def run_scheduler() -> None:
     while True:
         try:
             await tick_reminders()
+            await _tick_seguimientos()
             if loops % CONTACTOS_CADA == 0:
                 await sync_contactos()
         except asyncio.CancelledError:
