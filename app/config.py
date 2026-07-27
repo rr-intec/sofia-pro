@@ -112,6 +112,10 @@ class Settings(BaseSettings):
     # dry-run está validado. `cap_tick` limita envíos por pasada (goteo, tick=5 min).
     seguimientos_activo: bool = False
     seguimientos_cap_tick: int = Field(default=8, ge=1, le=50)
+    # Ventana horaria (hora local de México) en que se PUEDEN enviar toques. Fuera de
+    # esto no se manda nada (no escribir a papás de madrugada/noche).
+    seguimientos_hora_inicio: int = Field(default=9, ge=0, le=23)
+    seguimientos_hora_fin: int = Field(default=20, ge=1, le=23)
     enable_validators: bool = True
     max_regenerations_per_turn: int = Field(default=2, ge=0, le=5)
     # Tope de preguntas en el texto libre de Haiku (guard de salida). Subir a 2 si

@@ -219,7 +219,19 @@ async def ejecutar(enviar: bool, cap: int) -> list[dict]:
     marca al lead, no cuenta contra el cap. Devuelve el reporte de lo hecho/planeado."""
     from app.adapters.evolution_client import get_evolution
 
+    from zoneinfo import ZoneInfo
+
     settings = get_settings()
+    # GUARDA DE HORARIO: solo se envía dentro de la ventana local de México. Fuera de
+    # ella no se manda NADA (ni se marca a Lili) — se reintenta en el siguiente tick.
+    hora_mx = datetime.now(ZoneInfo("America/Mexico_City")).hour
+    if enviar and not (settings.seguimientos_hora_inicio <= hora_mx < settings.seguimientos_hora_fin):
+        log.info(
+            "seguimientos: fuera de horario, no se envía",
+            extra={"hora_mx": hora_mx, "ventana": [settings.seguimientos_hora_inicio, settings.seguimientos_hora_fin]},
+        )
+        return [{"accion": "FUERA_DE_HORARIO", "hora_mx": hora_mx}]
+
     conn = await asyncpg.connect(settings.supabase_db_url)
     reporte: list[dict] = []
     try:
