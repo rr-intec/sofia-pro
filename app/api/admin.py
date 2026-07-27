@@ -467,6 +467,59 @@ async def reactivar_lead(
     }
 
 
+@router.get("/seguimientos/plan")
+async def seguimientos_plan(
+    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+) -> dict[str, Any]:
+    """Cola de seguimientos: qué leads están EN FILA para su próximo toque (los que
+    empezarán a salir en la ventana horaria) + cuántos toques ya se enviaron. Es la
+    misma lógica que ejecuta el envío (una sola fuente de verdad), en modo dry-run."""
+    _check_admin(x_admin_key)
+    from datetime import datetime, timezone
+
+    import asyncpg
+
+    from app.core.seguimientos import planear
+
+    settings = get_settings()
+    conn = await asyncpg.connect(settings.supabase_db_url)
+    try:
+        acciones = await planear(conn, datetime.now(timezone.utc))
+        # Historial de toques ya enviados/marcados.
+        hist = await conn.fetch(
+            "select toque, count(*) n from lead_seguimientos group by toque"
+        )
+    finally:
+        await conn.close()
+
+    enviados = {int(r["toque"]): int(r["n"]) for r in hist}
+    cola = [
+        {
+            "nombre": a.nombre or "Prospecto",
+            "telefono": "".join(c for c in a.session_id.split("@")[0] if c.isdigit())[-10:],
+            "toque": a.toque,
+            "cadencia": a.cadencia,
+            "dias_frio": round(a.horas_frio / 24, 1),
+            "es_lili": a.es_lili,
+        }
+        for a in acciones
+    ]
+    return {
+        "en_cola": len(cola),
+        "por_toque_en_cola": {
+            "toque1": sum(1 for c in cola if c["toque"] == 1),
+            "toque2": sum(1 for c in cola if c["toque"] == 2),
+            "toque3_lili": sum(1 for c in cola if c["toque"] == 3),
+        },
+        "ya_enviados": {
+            "toque1": enviados.get(1, 0),
+            "toque2": enviados.get(2, 0),
+            "toque3_lili": enviados.get(3, 0),
+        },
+        "cola": cola,
+    }
+
+
 @router.get("/diag/preexistente")
 async def diag_preexistente(
     numero: str = Query(description="Teléfono, con o sin prefijo (se usan los últimos 10 dígitos)"),
