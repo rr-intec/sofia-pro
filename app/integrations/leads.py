@@ -36,6 +36,7 @@ VALID_STAGES = frozenset(
         "pendiente_agendar",
         "cita_agendada",
         "seguimiento_post_visita",
+        "en_proceso",
         "cerrado_inscrito",
         "cerrado_perdido",
     }
@@ -241,7 +242,7 @@ async def advance_stage_if_lower(
 
     Pipeline order:
       contacto_inicial < pendiente_agendar < cita_agendada
-        < seguimiento_post_visita < cerrado_inscrito
+        < seguimiento_post_visita < en_proceso < cerrado_inscrito
 
     `cerrado_perdido` queda fuera del orden (no se "avanza" desde ahí automáticamente).
     """
@@ -250,6 +251,7 @@ async def advance_stage_if_lower(
         "pendiente_agendar",
         "cita_agendada",
         "seguimiento_post_visita",
+        "en_proceso",
         "cerrado_inscrito",
     ]
     if current_stage not in order or target_stage not in order:
