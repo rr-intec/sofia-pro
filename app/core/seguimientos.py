@@ -42,6 +42,14 @@ TOQUE2 = (
     "compromete a nada, es solo para que tengas toda la claridad. ¿Buscamos un día que "
     "te acomode?"
 )
+# Variante del Toque 1 para chats que atendía LILY (Sofía no "platicó" con ellos, así que
+# no puede decir "lo que platicamos"). Más neutral, sin dar por hecho una charla previa.
+TOQUE1_LILY = (
+    "Hola{n} 👋 Soy Sofía, del equipo de admisiones de Maple Collège. Vi que nos "
+    "escribiste hace unos días y me encantaría ayudarte a que conozcas la escuela 😊 "
+    "¿Te gustaría que agendemos una visita para que la conozcas y resuelvas cualquier "
+    "duda en persona? Con gusto te aparto un espacio."
+)
 # Guía para Lili (se guarda como nota en el lead; ella manda su nota de voz).
 TOQUE3_GUIA_LILI = (
     "Hola{n}, soy Lili de Maple 💛 Con mucho gusto te acompaño en el proceso. Si tienes "
@@ -75,6 +83,7 @@ class Accion:
     horas_frio: float
     texto: str  # mensaje a enviar (toque 1/2) o guía para Lili (toque 3)
     es_lili: bool  # True = toque 3, NO se envía, solo se marca
+    de_lily: bool = False  # el chat lo atendía Lily (bot apagado) → mensaje neutral
 
 
 def _primer_nombre(parent_name: str | None) -> str:
@@ -90,8 +99,10 @@ def _primer_nombre(parent_name: str | None) -> str:
     return " " + limpio if len(limpio) >= 2 else ""
 
 
-def _texto_toque(toque: int, parent_name: str | None) -> str:
+def _texto_toque(toque: int, parent_name: str | None, de_lily: bool = False) -> str:
     n = _primer_nombre(parent_name)
+    if toque == 1 and de_lily:
+        return TOQUE1_LILY.format(n=n)
     plantilla = {1: TOQUE1, 2: TOQUE2, 3: TOQUE3_GUIA_LILI}[toque]
     return plantilla.format(n=n)
 
@@ -174,6 +185,7 @@ async def planear(conn: asyncpg.Connection, ahora: datetime) -> list[Accion]:
             if horas_desde_prev < CADENCIAS[cad][siguiente]:
                 continue
 
+        de_lily = not r["bot_activo"]
         acciones.append(
             Accion(
                 session_id=sid,
@@ -181,8 +193,9 @@ async def planear(conn: asyncpg.Connection, ahora: datetime) -> list[Accion]:
                 toque=siguiente,
                 cadencia=cad,
                 horas_frio=horas_frio,
-                texto=_texto_toque(siguiente, r["parent_name"]),
+                texto=_texto_toque(siguiente, r["parent_name"], de_lily=de_lily),
                 es_lili=(siguiente == 3),
+                de_lily=de_lily,
             )
         )
 
