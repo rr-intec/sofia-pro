@@ -540,6 +540,7 @@ async def seguimientos_plan(
     enviados = {int(r["toque"]): int(r["n"]) for r in hist}
     cola = [
         {
+            "session_id": a.session_id,
             "nombre": a.nombre or "Prospecto",
             "telefono": "".join(c for c in a.session_id.split("@")[0] if c.isdigit())[-10:],
             "toque": a.toque,
@@ -564,6 +565,7 @@ async def seguimientos_plan(
         "cola": cola,
         "enviados": [
             {
+                "session_id": r["session_id"],
                 "nombre": r["parent_name"] or "Prospecto",
                 "telefono": "".join(c for c in r["session_id"].split("@")[0] if c.isdigit())[-10:],
                 "toque": int(r["toque"]),
