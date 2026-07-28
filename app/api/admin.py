@@ -524,6 +524,16 @@ async def seguimientos_plan(
         hist = await conn.fetch(
             "select toque, count(*) n from lead_seguimientos group by toque"
         )
+        # Detalle de los últimos enviados (con nombre), para que el CRM los muestre.
+        enviados_det = await conn.fetch(
+            """
+            select ls.toque, ls.cadencia, ls.enviado_at, ls.session_id, l.parent_name
+            from lead_seguimientos ls
+            left join leads l on l.conversation_session_id = ls.session_id
+            order by ls.enviado_at desc
+            limit 200
+            """
+        )
     finally:
         await conn.close()
 
@@ -552,6 +562,16 @@ async def seguimientos_plan(
             "toque3_lili": enviados.get(3, 0),
         },
         "cola": cola,
+        "enviados": [
+            {
+                "nombre": r["parent_name"] or "Prospecto",
+                "telefono": "".join(c for c in r["session_id"].split("@")[0] if c.isdigit())[-10:],
+                "toque": int(r["toque"]),
+                "cadencia": r["cadencia"],
+                "enviado_at": r["enviado_at"].isoformat(),
+            }
+            for r in enviados_det
+        ],
     }
 
 
