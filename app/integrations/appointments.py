@@ -73,7 +73,11 @@ async def create_appointment(
     campus_id: int | None = None,
     settings: Settings | None = None,
 ) -> int | None:
-    """Inserta cita con status='pendiente'. Devuelve el id o None si falla."""
+    """Inserta cita con status='confirmada'. Devuelve el id o None si falla.
+
+    Decisión Gaby/usuario (2026-07-29): Sofía agenda contra el calendario real de Lily,
+    así que la cita queda CONFIRMADA de una vez (sin paso de 'pendiente de aprobación',
+    que solo generaba fricción). Lily la ve directo en su calendario."""
     settings = settings or get_settings()
     if not settings.supabase_url:
         return None
@@ -82,7 +86,7 @@ async def create_appointment(
         "lead_id": lead_id,
         "fecha_hora": fecha_hora.isoformat(),
         "duracion_min": duracion_min,
-        "status": "pendiente",
+        "status": "confirmada",
     }
     if notas:
         payload["notas"] = notas

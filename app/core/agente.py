@@ -616,7 +616,7 @@ def _texto_confirmacion(*, dt: datetime, campus, correo_enviado: bool, reagendad
     """Texto que ve el modelo: fecha + campus + link de Maps EXACTO (de la tabla)."""
     maps_url = (campus.google_maps_url if campus else None) or ""
     lugar = f" en {campus.nombre} ({campus.direccion_legible()})" if campus else ""
-    verbo = "reprogramada" if reagendada else "registrada (pendiente de confirmación de Lily)"
+    verbo = "reprogramada" if reagendada else "confirmada"
     partes = [f"✅ Cita {verbo} para el {_fecha_es(dt)} a las {_hora_es(dt)}{lugar}."]
     if maps_url:
         partes.append(f"Incluye en tu respuesta este link de Google Maps TAL CUAL: {maps_url}")
@@ -796,13 +796,13 @@ async def _tool_agendar_visita(inp: dict[str, Any], *, session_id: str, canal: C
             session_id=session_id,
             description=(
                 f"Sofía Pro agendó cita para {fecha_humana} en "
-                f"{campus.nombre if campus else f'campus_id={campus_id}'} (pendiente de aprobación)"
+                f"{campus.nombre if campus else f'campus_id={campus_id}'} (confirmada)"
             ),
             metadata={
                 "appointment_id": appt_id,
                 "fecha_hora": dt.isoformat(),
                 "canal": canal.value,
-                "status": "pendiente",
+                "status": "confirmada",
                 "campus_id": campus_id,
             },
         )

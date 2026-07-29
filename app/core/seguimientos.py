@@ -43,14 +43,6 @@ TOQUE2 = (
     "compromete a nada, es solo para que tengas toda la claridad. ¿Buscamos un día que "
     "te acomode?"
 )
-# Variante del Toque 1 para chats que atendía LILY (Sofía no "platicó" con ellos, así que
-# no puede decir "lo que platicamos"). Más neutral, sin dar por hecho una charla previa.
-TOQUE1_LILY = (
-    "Hola{n} 👋 Soy Sofía, del equipo de admisiones de Maple Collège. Vi que nos "
-    "escribiste hace unos días y me encantaría ayudarte a que conozcas la escuela 😊 "
-    "¿Te gustaría que agendemos una visita para que la conozcas y resuelvas cualquier "
-    "duda en persona? Con gusto te aparto un espacio."
-)
 # Guía para Lili (se guarda como nota en el lead; ella manda su nota de voz).
 TOQUE3_GUIA_LILI = (
     "Hola{n}, soy Lili de Maple 💛 Con mucho gusto te acompaño en el proceso. Si tienes "
@@ -120,9 +112,9 @@ def _primer_nombre(parent_name: str | None) -> str:
 
 
 def _texto_toque(toque: int, parent_name: str | None, de_lily: bool = False) -> str:
+    # Siempre el texto EXACTO aprobado por Gaby (decisión 2026-07-29). El parámetro
+    # de_lily se conserva por compatibilidad pero ya no cambia el mensaje.
     n = _primer_nombre(parent_name)
-    if toque == 1 and de_lily:
-        return TOQUE1_LILY.format(n=n)
     plantilla = {1: TOQUE1, 2: TOQUE2, 3: TOQUE3_GUIA_LILI}[toque]
     return plantilla.format(n=n)
 
