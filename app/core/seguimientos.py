@@ -19,6 +19,7 @@ Reglas duras:
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -322,6 +323,15 @@ async def ejecutar(enviar: bool, cap: int) -> list[dict]:
                     "insert into lead_seguimientos(session_id,toque,cadencia) values($1,$2,$3) "
                     "on conflict do nothing",
                     a.session_id, a.toque, a.cadencia,
+                )
+                # Guardar el toque en la conversación (sofia_messages) para que se vea en
+                # el chat del CRM al supervisar. Sin esto, el seguimiento salía por
+                # WhatsApp pero no quedaba registrado en el hilo.
+                await conn.execute(
+                    "insert into sofia_messages(session_id, role, content, tipo, metadata, created_at) "
+                    "values($1, 'assistant', $2, 'texto', $3::jsonb, now())",
+                    a.session_id, a.texto,
+                    json.dumps({"toque": a.toque, "cadencia": a.cadencia, "seguimiento": True}),
                 )
                 await _avanzar_stage(conn, a.session_id, a.toque)  # → seguimiento_1/2
                 # Si el chat estaba en manos de Lily (bot apagado) y ya está FRÍO, Sofía
