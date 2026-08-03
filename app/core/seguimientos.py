@@ -292,13 +292,21 @@ async def ejecutar(enviar: bool, cap: int) -> list[dict]:
             }
             if a.es_lili:
                 if enviar:
-                    await _marcar_lili(conn, a.session_id, a.texto)
-                    await conn.execute(
-                        "insert into lead_seguimientos(session_id,toque,cadencia) values($1,3,$2) "
-                        "on conflict do nothing",
-                        a.session_id, a.cadencia,
-                    )
-                    await _avanzar_stage(conn, a.session_id, 3)  # → seguimiento_3
+                    try:
+                        await _marcar_lili(conn, a.session_id, a.texto)
+                        await conn.execute(
+                            "insert into lead_seguimientos(session_id,toque,cadencia) values($1,3,$2) "
+                            "on conflict do nothing",
+                            a.session_id, a.cadencia,
+                        )
+                        await _avanzar_stage(conn, a.session_id, 3)  # → seguimiento_3
+                    except Exception as exc:  # noqa: BLE001 — una acción que falle NO frena la cola
+                        item["accion"] = "ERROR"
+                        item["error"] = str(exc)[:300]
+                        log.error(
+                            "seguimientos: toque3 falló, se salta (no frena la cola)",
+                            extra={"sid": a.session_id, "error": str(exc)},
+                        )
                 reporte.append(item)
                 continue
             if enviados >= cap:
@@ -306,35 +314,45 @@ async def ejecutar(enviar: bool, cap: int) -> list[dict]:
                 reporte.append(item)
                 continue
             if enviar:
-                ok = await _enviar_wa(evo, a.session_id, a.texto)
-                if not ok:
-                    item["accion"] = "FALLO_ENVIO"
+                try:
+                    ok = await _enviar_wa(evo, a.session_id, a.texto)
+                    if not ok:
+                        item["accion"] = "FALLO_ENVIO"
+                        reporte.append(item)
+                        continue
+                    await conn.execute(
+                        "insert into lead_seguimientos(session_id,toque,cadencia) values($1,$2,$3) "
+                        "on conflict do nothing",
+                        a.session_id, a.toque, a.cadencia,
+                    )
+                    # Guardar el toque en la conversación (sofia_messages) para que se vea en
+                    # el chat del CRM al supervisar. Sin esto, el seguimiento salía por
+                    # WhatsApp pero no quedaba registrado en el hilo.
+                    await conn.execute(
+                        "insert into sofia_messages(session_id, role, content, tipo, metadata, created_at) "
+                        "values($1, 'assistant', $2, 'texto', $3::jsonb, now())",
+                        a.session_id, a.texto,
+                        json.dumps({"toque": a.toque, "cadencia": a.cadencia, "seguimiento": True}),
+                    )
+                    await _avanzar_stage(conn, a.session_id, a.toque)  # → seguimiento_1/2
+                    # Si el chat estaba en manos de Lily (bot apagado) y ya está FRÍO, Sofía
+                    # retoma la re-conexión para quitarle carga a Lily. Si Lily lo quiere de
+                    # vuelta, su próximo mensaje lo reclama solo (auto-handoff). No aplica al
+                    # Toque 3 (ese es de Lili).
+                    await conn.execute(
+                        "update sofia_conversations set bot_activo=true, atendido_por='bot' "
+                        "where session_id=$1 and bot_activo=false",
+                        a.session_id,
+                    )
+                except Exception as exc:  # noqa: BLE001 — una acción que falle NO frena la cola
+                    item["accion"] = "ERROR"
+                    item["error"] = str(exc)[:300]
+                    log.error(
+                        "seguimientos: envío falló, se salta (no frena la cola)",
+                        extra={"sid": a.session_id, "toque": a.toque, "error": str(exc)},
+                    )
                     reporte.append(item)
                     continue
-                await conn.execute(
-                    "insert into lead_seguimientos(session_id,toque,cadencia) values($1,$2,$3) "
-                    "on conflict do nothing",
-                    a.session_id, a.toque, a.cadencia,
-                )
-                # Guardar el toque en la conversación (sofia_messages) para que se vea en
-                # el chat del CRM al supervisar. Sin esto, el seguimiento salía por
-                # WhatsApp pero no quedaba registrado en el hilo.
-                await conn.execute(
-                    "insert into sofia_messages(session_id, role, content, tipo, metadata, created_at) "
-                    "values($1, 'assistant', $2, 'texto', $3::jsonb, now())",
-                    a.session_id, a.texto,
-                    json.dumps({"toque": a.toque, "cadencia": a.cadencia, "seguimiento": True}),
-                )
-                await _avanzar_stage(conn, a.session_id, a.toque)  # → seguimiento_1/2
-                # Si el chat estaba en manos de Lily (bot apagado) y ya está FRÍO, Sofía
-                # retoma la re-conexión para quitarle carga a Lily. Si Lily lo quiere de
-                # vuelta, su próximo mensaje lo reclama solo (auto-handoff). No aplica al
-                # Toque 3 (ese es de Lili).
-                await conn.execute(
-                    "update sofia_conversations set bot_activo=true, atendido_por='bot' "
-                    "where session_id=$1 and bot_activo=false",
-                    a.session_id,
-                )
             enviados += 1
             reporte.append(item)
     finally:
