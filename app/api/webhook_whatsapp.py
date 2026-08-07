@@ -273,6 +273,31 @@ def _texto_propio(data: dict[str, Any]) -> str:
     return ""
 
 
+def _es_media_humana(data: dict[str, Any]) -> bool:
+    """True si un fromMe SIN texto es una NOTA DE VOZ o DOCUMENTO que una persona
+    mandó a mano (Fabiola contesta por audio manejando/cocinando). Solo estos tipos:
+    las plantillas de Meta del flujo de anuncios son interactiveMessage/protocol, que
+    NO entran aquí, para no apagar el bot en leads de anuncio."""
+    msg = data.get("message") or {}
+    mt = (data.get("messageType") or "").lower()
+    if "audioMessage" in msg or mt in ("audiomessage", "ptt"):
+        return True
+    if "documentMessage" in msg or mt == "documentmessage":
+        return True
+    return False
+
+
+def _etiqueta_media_propia(data: dict[str, Any]) -> str:
+    """Etiqueta para guardar en la bandeja cuando el equipo respondió con media."""
+    msg = data.get("message") or {}
+    mt = (data.get("messageType") or "").lower()
+    if "audioMessage" in msg or mt in ("audiomessage", "ptt"):
+        return "(nota de voz enviada por el equipo)"
+    if "documentMessage" in msg or mt == "documentmessage":
+        return "(documento enviado por el equipo)"
+    return "(mensaje del equipo)"
+
+
 # Auto-respuestas de WhatsApp Business (saludo/ausencia configurados en la cuenta):
 # llegan como fromMe CON texto pero NO son Lily contestando a mano → no apagar Sofía.
 _AUTORESPUESTAS_WA = ("gracias por comunicarte con maple",)
@@ -488,18 +513,21 @@ async def _manejar_mensaje_propio(
         return
     session_id = EvolutionChannel.session_id_for_remote(remote_jid)
     texto = _texto_propio(data)
-    # fromMe SIN texto = mensaje automático (interactiveMessage/plantilla del flujo de
-    # anuncios, reacciones, protocolo), NO Lily contestando a mano. NO debe apagar el
-    # bot — antes esto dejaba a los leads de anuncio sin respuesta (Meta manda un
-    # interactiveMessage al hacer clic en el anuncio).
-    if not texto:
+    # fromMe SIN texto puede ser (a) una NOTA DE VOZ / documento que el equipo mandó a
+    # mano → SÍ es handoff (caso Fabiola: contesta por audio manejando/cocinando), o
+    # (b) una plantilla automática de Meta (interactiveMessage del flujo de anuncios,
+    # reacción, protocolo) → NO apagar el bot (antes dejaba leads de anuncio sin
+    # respuesta). Por eso solo cuenta como humano la media que una persona manda a
+    # mano (audio/documento); los tipos automáticos de Meta NO entran.
+    media_humana = _es_media_humana(data)
+    if not texto and not media_humana:
         return
     # Auto-respuesta de WhatsApp Business (saludo automático) → no es Lily, no apagar.
-    if _es_autorespuesta_wa(texto):
+    if texto and _es_autorespuesta_wa(texto):
         return
     # Seguro anti-carrera: si el texto coincide con el último mensaje del asistente,
     # es un eco del bot aunque su id no se haya registrado todavía → no apagar.
-    if texto == await repo.texto_ultimo_asistente(session_id):
+    if texto and texto == await repo.texto_ultimo_asistente(session_id):
         return
 
     # NO agregar aquí condiciones del tipo "si Sofía aún no responde, ignora el fromMe":
@@ -510,16 +538,17 @@ async def _manejar_mensaje_propio(
     # esperando es mucho menos grave que invadir un chat de Lily. Las auto-respuestas de
     # Meta se filtran ARRIBA por texto (`_es_autorespuesta_wa`), que es preciso.
 
-    # Respuesta MANUAL de Lily (con texto) → auto-handoff.
+    # Respuesta MANUAL del equipo (texto o nota de voz) → auto-handoff.
     await repo.ensure_conversation(session_id, Canal.WHATSAPP)
     if await repo.is_bot_active(session_id):
         await repo.set_bot_active(session_id, False, atendido_por="humano")
         log.info(
-            "auto-handoff: Lily respondió a mano → bot apagado",
+            "auto-handoff: el equipo respondió a mano (texto o media) → bot apagado",
             extra={"session_id": session_id},
         )
     await repo.insert_message(
-        session_id, "assistant", texto, metadata={"sent_by": "humano"}
+        session_id, "assistant", texto or _etiqueta_media_propia(data),
+        metadata={"sent_by": "humano"},
     )
 
 
