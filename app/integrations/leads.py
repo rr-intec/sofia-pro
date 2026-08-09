@@ -41,6 +41,9 @@ VALID_STAGES = frozenset(
         "en_proceso",
         "cierre_ganado",
         "cierre_perdido",
+        "llamar",
+        "alumnos",
+        "no_aplica",
     }
 )
 

@@ -37,7 +37,7 @@ from app.integrations.appointments import (
     update_appointment,
 )
 from app.integrations.events import emit_event
-from app.integrations.leads import advance_stage_if_lower, create_lead, get_lead_by_session
+from app.integrations.leads import advance_stage_if_lower, create_lead, get_lead_by_session, update_lead
 from app.notifications.email import (
     render_cita_pendiente_email,
     render_confirmacion_email_papa,
@@ -354,7 +354,7 @@ TOOLS_SPEC: list[dict[str, Any]] = [
     },
     {
         "name": "dias_disponibles_visita",
-        "description": "Próximos días hábiles CON SUS HORARIOS concretos libres para una cita de informes con Lily. Úsala antes de ofrecer fechas y ofrece día+horarios juntos en un mensaje.",
+        "description": "Próximos días hábiles CON SUS HORARIOS concretos libres para una cita de informes con el equipo de admisiones. Úsala antes de ofrecer fechas y ofrece día+horarios juntos en un mensaje.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
@@ -380,6 +380,29 @@ TOOLS_SPEC: list[dict[str, Any]] = [
                 "nombre_papa", "telefono", "nombre_hijo", "edad_hijo",
                 "nivel", "dia_iso", "hora",
             ],
+        },
+    },
+    {
+        "name": "escalar_a_ventas",
+        "description": (
+            "Escala el lead a VENTAS (columna 'Llamar') para que el equipo de admisiones lo "
+            "contacte DIRECTO. Úsala en DOS casos: (1) presupuesto — el papá dice que el costo se "
+            "sale de su presupuesto o tiene otra propuesta más barata y valdría revisar opciones/"
+            "promociones; (2) prepa — el papá pregunta o se interesa por PREPARATORIA (proceso "
+            "especial que maneja el equipo directamente). Después de llamarla, NO des tú la "
+            "información de presupuesto ni de prepa: dile con calidez que el equipo de admisiones "
+            "lo contactará directamente para verlo con él."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "motivo": {
+                    "type": "string",
+                    "enum": ["presupuesto", "prepa"],
+                    "description": "Por qué se escala a ventas.",
+                },
+            },
+            "required": ["motivo"],
         },
     },
 ]
@@ -827,9 +850,49 @@ async def _tool_agendar_visita(inp: dict[str, Any], *, session_id: str, canal: C
     return _texto_confirmacion(dt=dt, campus=campus, correo_enviado=correo, reagendada=False)
 
 
+async def _tool_escalar_a_ventas(
+    inp: dict[str, Any], *, session_id: str, canal: Canal
+) -> str:
+    """Mueve el lead a la columna 'Llamar' para que ventas (equipo de admisiones) lo
+    contacte directo. Se usa en presupuesto (objeción de dinero) y prepa (proceso
+    especial que maneja el equipo). Best-effort — solo WhatsApp."""
+    motivo = (inp.get("motivo") or "").strip() or "escalación a ventas"
+    if canal != Canal.WHATSAPP:
+        return "(ok — el equipo de admisiones dará seguimiento directo)"
+    try:
+        lead = await get_lead_by_session(session_id)
+        if lead is None:
+            await create_lead(
+                parent_name=(await _nombre_contacto_wa(session_id)) or "Prospecto",
+                channel=canal.value,
+                conversation_session_id=session_id,
+                parent_phone=_telefono_de_session(session_id),
+                notes=f"Escalado a ventas por Sofía: {motivo}.",
+            )
+            lead = await get_lead_by_session(session_id)
+        if lead is not None:
+            await update_lead(lead.id, {"stage": "llamar"})
+            await emit_event(
+                "sofia_escalated",
+                lead_id=lead.id,
+                session_id=session_id,
+                description=f"Sofía escaló a ventas (columna Llamar): {motivo}",
+                metadata={"motivo": motivo, "to_stage": "llamar"},
+            )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("escalar_a_ventas falló", extra={"error": str(exc), "session": session_id})
+    return (
+        "(Lead movido a 'Llamar' para contacto directo del equipo de admisiones. "
+        "Dile al papá con calidez que el equipo lo contactará directamente para verlo con él; "
+        "NO des tú la información de presupuesto/prepa.)"
+    )
+
+
 async def _ejecutar_tool(
     name: str, inp: dict[str, Any], *, session_id: str, canal: Canal
 ) -> str:
+    if name == "escalar_a_ventas":
+        return await _tool_escalar_a_ventas(inp, session_id=session_id, canal=canal)
     if name == "consultar_costos":
         return await _tool_consultar_costos(inp)
     if name == "consultar_horario":
