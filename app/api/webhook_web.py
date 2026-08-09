@@ -130,3 +130,87 @@ async def chat_history(session_id: str, limit: int = 50) -> dict:
     repo = get_repository()
     rows = await repo.list_recent_messages(session_id, limit=limit)
     return {"session_id": session_id, "messages": rows}
+
+
+# ============================================================
+# Página pública de disponibilidad (SOLO LECTURA)
+# El papá VE los horarios libres; agenda por WhatsApp (no hay auto-registro,
+# para no sacarlo del chat y que no se enfríe). Reunión Fabiola 2026-08-07.
+# ============================================================
+
+_DIAS_SEMANA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+_MESES = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+]
+
+
+def _fecha_larga_es(dt) -> str:
+    return f"{_DIAS_SEMANA[dt.weekday()]} {dt.day} de {_MESES[dt.month - 1]}"
+
+
+def _hora_ampm(dt) -> str:
+    h, m = dt.hour, dt.minute
+    ampm = "a.m." if h < 12 else "p.m."
+    return f"{h % 12 or 12}:{m:02d} {ampm}"
+
+
+@router.get("/agenda", response_class=HTMLResponse)
+async def agenda_disponibilidad() -> HTMLResponse:
+    """Disponibilidad pública de citas de informes (solo lectura). Misma lógica de
+    slots que usa Sofía (fuente única de verdad); se agenda por WhatsApp."""
+    from app.tools.availability_checker import evaluar_dia, proximos_dias_habiles
+
+    bloques: list[str] = []
+    try:
+        dias = await proximos_dias_habiles(cantidad=10)
+        for d in dias:
+            res = await evaluar_dia(d)
+            if not res.available or not res.alternativas:
+                continue
+            chips = "".join(f'<span class="slot">{_hora_ampm(h)}</span>' for h in res.alternativas)
+            bloques.append(
+                f'<div class="dia"><div class="fecha">{_fecha_larga_es(d)}</div>'
+                f'<div class="slots">{chips}</div></div>'
+            )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("agenda: cálculo de disponibilidad falló", extra={"error": str(exc)})
+
+    cuerpo = (
+        "\n".join(bloques)
+        if bloques
+        else '<p class="vacio">Por ahora no hay horarios publicados. Escríbenos por '
+        "WhatsApp y con gusto te agendamos 😊</p>"
+    )
+
+    html = (
+        '<!doctype html><html lang="es"><head>'
+        '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+        "<title>Citas de informes · Maple Collège</title><style>"
+        ":root{--maple:#ec2b3b;--ink:#1c1c1e;--muted:#6b7280;--line:#e7e7ea;--bg:#f7f7f8;}"
+        "*{box-sizing:border-box;}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"
+        "'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--ink);}"
+        ".wrap{max-width:640px;margin:0 auto;padding:0 16px 48px;}"
+        "header{background:var(--maple);color:#fff;padding:28px 16px;text-align:center;}"
+        "header h1{margin:0;font-size:20px;}header p{margin:6px 0 0;opacity:.92;font-size:14px;}"
+        ".card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:16px;}"
+        ".intro{font-size:14px;color:var(--muted);margin:0;}"
+        ".dia{padding:14px 0;border-bottom:1px solid var(--line);}.dia:last-child{border-bottom:0;}"
+        ".fecha{font-weight:600;text-transform:capitalize;margin-bottom:8px;}"
+        ".slots{display:flex;flex-wrap:wrap;gap:8px;}"
+        ".slot{background:#fff;border:1px solid var(--maple);color:var(--maple);border-radius:999px;"
+        "padding:6px 12px;font-size:14px;font-variant-numeric:tabular-nums;}"
+        ".vacio{color:var(--muted);font-size:14px;margin:0;}"
+        ".cta{text-align:center;margin-top:20px;font-size:14px;color:var(--muted);}"
+        ".foot{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;}"
+        "</style></head><body>"
+        "<header><h1>Maple Collège · Citas de informes</h1>"
+        "<p>Horarios disponibles para conocer el colegio</p></header>"
+        '<div class="wrap"><div class="card"><p class="intro">Estos son los horarios '
+        "disponibles para tu cita de informes. Para apartar el tuyo, <strong>respóndenos por "
+        "WhatsApp</strong> con el día y la hora que más te acomode — nosotros lo confirmamos "
+        '😊</p></div><div class="card">' + cuerpo + "</div>"
+        '<p class="cta">¿Ninguno te acomoda? Escríbenos por WhatsApp y buscamos una opción para ti.</p>'
+        '<p class="foot">Maple Collège · Best Education Active and Relevant</p></div></body></html>'
+    )
+    return HTMLResponse(content=html)
