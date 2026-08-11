@@ -108,6 +108,19 @@ def _kb_contenido() -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
     return por_grado, por_nivel, por_modalidad
 
 
+def _resumen_corto(texto: str, max_frases: int = 2, max_chars: int = 300) -> str:
+    """Recorta el contenido del grado a lo esencial (1-2 frases). El modelo transmite lo
+    que se le inyecta; con menos contenido, responde más corto (chat real de WhatsApp)."""
+    t = (texto or "").strip()
+    if not t:
+        return t
+    frases = re.split(r"(?<=[.!?])\s+", t)
+    corto = " ".join(frases[:max_frases]).strip()
+    if len(corto) > max_chars:
+        corto = corto[:max_chars].rsplit(" ", 1)[0].rstrip(",;:") + "."
+    return corto
+
+
 def _modalidad_de_edad(
     edad_anos: int | None, edad_meses: int | None = None
 ) -> str | None:
@@ -371,6 +384,12 @@ def construir_contenido_grado(
     else:
         display = _display_grado(nivel, grado)
         texto = por_grado.get((grado or "").lower()) or por_nivel.get(nivel.lower(), "")
+
+    # RESUMEN CORTO (feedback Gaby/Fabiola 2026-08): el contenido del grado en la base es
+    # largo y el modelo lo transmite completo → respuestas de 4-6 párrafos. Le inyectamos
+    # SOLO lo esencial (1-2 frases) para que responda breve, tipo chat de WhatsApp. La base
+    # NO se toca; el resto del contenido se puede dar en turnos posteriores.
+    texto = _resumen_corto(texto)
 
     instr_dif = (
         f" Antes del contenido del grado, abre con el diferenciador GENERAL de Maple "
