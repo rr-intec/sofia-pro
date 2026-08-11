@@ -1009,6 +1009,9 @@ async def procesar_turno_agente(
         final_text = "".join(
             b.text for b in resp.content if getattr(b, "type", None) == "text"
         ).strip()
+        # Regla 14.5: nada de guiones largos/medios (señal de "texto de IA"). Se limpian
+        # por código porque el modelo a veces los usa aunque el prompt los prohíba.
+        final_text = re.sub(r"\s*[—–]\s*", ", ", final_text)
         break
 
     if not final_text:
