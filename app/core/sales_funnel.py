@@ -592,9 +592,11 @@ def decidir_funnel(
                 False, STAGE_PIDE_GRADO, 0, False,
                 pedir_grado=True, pedir_grado_nivel=nivel_en_msg,
             )
-        # Ya hay grado/edad → contenido ESPECÍFICO (Etapa 1).
+        # Ya hay grado/edad → contenido ESPECÍFICO (Etapa 1). SIN diferenciador general:
+        # abrir con el diferenciador + el contenido del grado hacía respuestas largas
+        # (feedback Gaby/Fabiola 2026-08). Solo un beat corto del grado + invitar a la cita.
         hint, beats = construir_contenido_grado(
-            nivel_en_msg, grado, usados, n=1, incluir_diferenciador=True,
+            nivel_en_msg, grado, usados, n=1, incluir_diferenciador=False,
             edad=edad, edad_meses=edad_meses
         )
         return FunnelDecision(
@@ -607,7 +609,7 @@ def decidir_funnel(
     # de quedarnos en "Perfecto, cuarto grado de primaria." sin nada (bug real de Gaby).
     if stage == STAGE_ENGANCHE and nivel_ctx and _especifico(nivel_ctx):
         hint, beats = construir_contenido_grado(
-            nivel_ctx, grado, usados, n=1, incluir_diferenciador=True,
+            nivel_ctx, grado, usados, n=1, incluir_diferenciador=False,
             edad=edad, edad_meses=edad_meses,
         )
         return FunnelDecision(
