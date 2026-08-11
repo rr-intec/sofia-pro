@@ -397,9 +397,12 @@ def construir_contenido_grado(
 
     hint = (
         f"[CONTENIDO {display} — el papá quiere saber de {display}.{contenido} "
-        f"Redáctalo cálido y BREVE (2-4 frases), con UNA escena observable (lo que el "
-        f"papá vería en su hijo), con tus palabras pero SIN salirte de ese contenido ni "
-        f"inventar.{instr_dif} Toca un aspecto DISTINTO a lo ya dicho — no repitas. Sin "
+        f"Redáctalo cálido y MUY BREVE: **máximo 2-3 frases, UN solo párrafo corto** (como "
+        f"un chat real de WhatsApp), con UNA escena observable (lo que el papá vería en su "
+        f"hijo). NO enumeres varias áreas juntas (organización, planeación, pensamiento "
+        f"crítico, trabajo colaborativo…): elige UNA. Con tus palabras pero SIN salirte de "
+        f"ese contenido ni inventar.{instr_dif} Toca un aspecto DISTINTO a lo ya dicho — no "
+        f"repitas. Cierra invitando o acercando a la cita de informes. Sin "
         f"precios.{_kinder_regla(nivel)}{_maternal_regla(nivel)}{_TONO}]"
     )
     return hint, []
