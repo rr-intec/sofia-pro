@@ -850,6 +850,16 @@ async def _tool_agendar_visita(inp: dict[str, Any], *, session_id: str, canal: C
     return _texto_confirmacion(dt=dt, campus=campus, correo_enviado=correo, reagendada=False)
 
 
+def _acortar_respuesta(txt: str, max_par: int = 3) -> str:
+    """Tope duro de longitud: si hay más de `max_par` párrafos, conserva los primeros y
+    el ÚLTIMO (que suele ser la pregunta/CTA hacia la cita). El modelo insiste en
+    respuestas largas al describir niveles aunque el prompt pida brevedad."""
+    pars = [p for p in re.split(r"\n\s*\n", txt) if p.strip()]
+    if len(pars) <= max_par:
+        return txt
+    return "\n\n".join(pars[: max_par - 1] + [pars[-1]])
+
+
 async def _tool_escalar_a_ventas(
     inp: dict[str, Any], *, session_id: str, canal: Canal
 ) -> str:
@@ -1012,6 +1022,10 @@ async def procesar_turno_agente(
         # Regla 14.5: nada de guiones largos/medios (señal de "texto de IA"). Se limpian
         # por código porque el modelo a veces los usa aunque el prompt los prohíba.
         final_text = re.sub(r"\s*[—–]\s*", ", ", final_text)
+        # Tope duro de longitud (feedback Gaby/Fabiola): el modelo insiste en respuestas
+        # largas al describir niveles aunque el prompt pida brevedad. Recortamos a pocos
+        # párrafos, conservando el cierre (la invitación/pregunta hacia la cita).
+        final_text = _acortar_respuesta(final_text)
         break
 
     if not final_text:
