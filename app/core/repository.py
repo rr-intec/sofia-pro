@@ -228,7 +228,92 @@ class Repository:
                 extra={"status": resp.status_code, "body": resp.text[:200]},
             )
             return False
+        # Al pasar a modo humano, garantizamos que exista un lead para que el chat
+        # aparezca en Gestión de Leads (el Kanban se alimenta de la tabla `leads`).
+        if not active:
+            await self.ensure_lead_on_handoff(session_id)
         return True
+
+    async def ensure_lead_on_handoff(self, session_id: str) -> None:
+        """Garantiza un lead cuando un chat pasa a modo humano.
+
+        Sin esto, los chats atendidos a mano (Lily escribe primero, o el equipo
+        responde manual) nunca generan lead y no salen en el Kanban. Idempotente
+        (si ya existe lead, no hace nada) y resiliente (nunca rompe el flujo del
+        webhook). Solo WhatsApp; el lead queda con Sofía apagada, en
+        `contacto_inicial`, con el mismo criterio de nombre que la bandeja del
+        panel: agenda de Lily → nombre capturado por Sofía → pushName → teléfono."""
+        if not session_id.startswith("whatsapp:"):
+            return
+        try:
+            existe = await self.client.get(
+                "/leads",
+                params={
+                    "conversation_session_id": f"eq.{session_id}",
+                    "select": "id",
+                    "limit": "1",
+                },
+            )
+            if existe.status_code < 400 and existe.json():
+                return  # ya hay lead, nada que hacer
+
+            ident = session_id.split(":", 1)[1]
+            phone = ident.split("@")[0] or ident
+
+            nombre_guardado = pushname = nombre_papa = None
+            rc = await self.client.get(
+                "/whatsapp_contactos",
+                params={
+                    "identificador": f"eq.{phone}",
+                    "select": "nombre_guardado,pushname",
+                    "limit": "1",
+                },
+            )
+            if rc.status_code < 400 and rc.json():
+                row = rc.json()[0]
+                nombre_guardado = (row.get("nombre_guardado") or "").strip() or None
+                pushname = (row.get("pushname") or "").strip() or None
+
+            if not nombre_guardado:
+                rconv = await self.client.get(
+                    "/sofia_conversations",
+                    params={
+                        "session_id": f"eq.{session_id}",
+                        "select": "estado_capturado",
+                        "limit": "1",
+                    },
+                )
+                if rconv.status_code < 400 and rconv.json():
+                    ec = rconv.json()[0].get("estado_capturado") or {}
+                    nombre_papa = (ec.get("nombre_papa") or "").strip() or None
+
+            nombre = nombre_guardado or nombre_papa or pushname or phone
+
+            ins = await self.client.post(
+                "/leads",
+                headers={"Prefer": "return=minimal"},
+                json={
+                    "parent_name": nombre,
+                    "parent_phone": phone,
+                    "channel": "whatsapp",
+                    "conversation_session_id": session_id,
+                    "stage": "contacto_inicial",
+                    "sofia_active": False,
+                    "source": "manual",
+                },
+            )
+            if ins.status_code >= 400:
+                log.warning(
+                    "ensure_lead_on_handoff insert failed",
+                    extra={"status": ins.status_code, "body": ins.text[:200]},
+                )
+            else:
+                log.info(
+                    "ensure_lead_on_handoff: lead creado por handoff",
+                    extra={"session_id": session_id},
+                )
+        except Exception as exc:  # nunca romper el webhook por esto
+            log.warning("ensure_lead_on_handoff error", extra={"error": str(exc)})
 
     # ----------------------------------------------------------------
     # Contactos de WhatsApp (nombres para la bandeja del panel)
