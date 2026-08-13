@@ -134,6 +134,8 @@ async def planear(conn: asyncpg.Connection, ahora: datetime) -> list[Accion]:
         left join lastmsg lm on lm.session_id = l.conversation_session_id
         where l.stage::text = any($1::text[])
           and l.conversation_session_id is not null
+          and c.bot_activo = true  -- SOLO chats que Sofía posee. Jamás uno que
+                                   -- atiende un humano (regla de oro del handoff).
           and not exists (
             select 1 from appointments a where a.lead_id = l.id)
         """,
@@ -335,15 +337,10 @@ async def ejecutar(enviar: bool, cap: int) -> list[dict]:
                         json.dumps({"toque": a.toque, "cadencia": a.cadencia, "seguimiento": True}),
                     )
                     await _avanzar_stage(conn, a.session_id, a.toque)  # → seguimiento_1/2
-                    # Si el chat estaba en manos de Lily (bot apagado) y ya está FRÍO, Sofía
-                    # retoma la re-conexión para quitarle carga a Lily. Si Lily lo quiere de
-                    # vuelta, su próximo mensaje lo reclama solo (auto-handoff). No aplica al
-                    # Toque 3 (ese es de Lili).
-                    await conn.execute(
-                        "update sofia_conversations set bot_activo=true, atendido_por='bot' "
-                        "where session_id=$1 and bot_activo=false",
-                        a.session_id,
-                    )
+                    # NOTA: Sofía NUNCA reactiva sola un chat que atiende un humano.
+                    # El seguimiento ya solo corre sobre chats que Sofía posee
+                    # (bot_activo=true, filtrado en planear()). Reactivar chats de
+                    # Lily invadía conversaciones ya atendidas (alumnos, cerrados).
                 except Exception as exc:  # noqa: BLE001 — una acción que falle NO frena la cola
                     item["accion"] = "ERROR"
                     item["error"] = str(exc)[:300]
