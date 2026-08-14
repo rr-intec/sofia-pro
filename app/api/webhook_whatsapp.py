@@ -273,27 +273,62 @@ def _texto_propio(data: dict[str, Any]) -> str:
     return ""
 
 
+# Contenedores de Baileys que ANIDAN otro `message` dentro (mensajes que
+# desaparecen, ver una vez, editados, documento con caption…). Una nota de voz
+# puede llegar envuelta en cualquiera de estos, y entonces `audioMessage` NO está
+# en el nivel superior. Hay que desenvolver para detectarla.
+_CONTENEDORES_MSG = (
+    "ephemeralmessage",
+    "viewoncemessage",
+    "viewoncemessagev2",
+    "viewoncemessagev2extension",
+    "documentwithcaptionmessage",
+    "editedmessage",
+    "protocolmessage",
+)
+
+
+def _tipos_directos(msg: Any, _depth: int = 0) -> set[str]:
+    """Nombres de tipo presentes en el mensaje, desenvolviendo contenedores. NO mira
+    el mensaje citado (contextInfo.quotedMessage) para no confundir una respuesta de
+    texto que cita un audio con una nota de voz real."""
+    tipos: set[str] = set()
+    if not isinstance(msg, dict) or _depth > 6:
+        return tipos
+    for k, v in msg.items():
+        kl = k.lower()
+        if kl in ("contextinfo", "messagecontextinfo"):
+            continue  # el mensaje CITADO no es lo que la persona acaba de enviar
+        tipos.add(kl)
+        if kl in _CONTENEDORES_MSG and isinstance(v, dict):
+            inner = v.get("message")
+            if isinstance(inner, dict):
+                tipos |= _tipos_directos(inner, _depth + 1)
+    return tipos
+
+
 def _es_media_humana(data: dict[str, Any]) -> bool:
     """True si un fromMe SIN texto es una NOTA DE VOZ o DOCUMENTO que una persona
-    mandó a mano (Fabiola contesta por audio manejando/cocinando). Solo estos tipos:
-    las plantillas de Meta del flujo de anuncios son interactiveMessage/protocol, que
-    NO entran aquí, para no apagar el bot en leads de anuncio."""
-    msg = data.get("message") or {}
-    mt = (data.get("messageType") or "").lower()
-    if "audioMessage" in msg or mt in ("audiomessage", "ptt"):
+    mandó a mano (Fabiola contesta por audio manejando/cocinando). Robusto a las
+    envolturas de Baileys (ephemeral/viewOnce/edited). Las plantillas de Meta del
+    flujo de anuncios (interactiveMessage/buttons/template) NO tienen audio ni
+    documento, así que NO entran aquí y no apagan el bot en leads de anuncio."""
+    tipos = _tipos_directos(data.get("message") or {})
+    tipos.add((data.get("messageType") or "").lower())
+    if any(("audio" in t) or (t == "ptt") for t in tipos):
         return True
-    if "documentMessage" in msg or mt == "documentmessage":
+    if any("document" in t for t in tipos):
         return True
     return False
 
 
 def _etiqueta_media_propia(data: dict[str, Any]) -> str:
     """Etiqueta para guardar en la bandeja cuando el equipo respondió con media."""
-    msg = data.get("message") or {}
-    mt = (data.get("messageType") or "").lower()
-    if "audioMessage" in msg or mt in ("audiomessage", "ptt"):
+    tipos = _tipos_directos(data.get("message") or {})
+    tipos.add((data.get("messageType") or "").lower())
+    if any(("audio" in t) or (t == "ptt") for t in tipos):
         return "(nota de voz enviada por el equipo)"
-    if "documentMessage" in msg or mt == "documentmessage":
+    if any("document" in t for t in tipos):
         return "(documento enviado por el equipo)"
     return "(mensaje del equipo)"
 
@@ -521,6 +556,15 @@ async def _manejar_mensaje_propio(
     # mano (audio/documento); los tipos automáticos de Meta NO entran.
     media_humana = _es_media_humana(data)
     if not texto and not media_humana:
+        # Diagnóstico: si una nota de voz aún se colara sin detectarse, aquí queda
+        # su forma exacta (messageType + tipos) para ajustar el detector.
+        log.info(
+            "fromMe sin texto NO clasificado como media humana → ignorado",
+            extra={
+                "messageType": data.get("messageType"),
+                "tipos": sorted(_tipos_directos(data.get("message") or {})),
+            },
+        )
         return
     # Auto-respuesta de WhatsApp Business (saludo automático) → no es Lily, no apagar.
     if texto and _es_autorespuesta_wa(texto):
