@@ -485,10 +485,18 @@ async def conversaciones_sin_concluir(
               select distinct on (session_id) session_id, role
               from sofia_messages order by session_id, created_at desc)
             select
-              count(*) filter (where u.role='user' and c.bot_activo=true)  as esperando_sofia,
-              count(*) filter (where u.role='user' and c.bot_activo=false) as esperando_lily
+              count(*) filter (where u.role='user' and c.bot_activo=true  and not coalesce(t.term, false)) as esperando_sofia,
+              count(*) filter (where u.role='user' and c.bot_activo=false and not coalesce(t.term, false)) as esperando_lily
             from ult u
             join sofia_conversations c on c.session_id = u.session_id
+            -- El stage del lead (si existe) para descartar columnas terminales: un
+            -- alumno inscrito o un proceso cerrado NO "espera respuesta".
+            left join lateral (
+              select coalesce(l.stage::text, '') in
+                ('alumnos','cierre_ganado','cierre_perdido','no_aplica','seguimiento_post_visita') as term
+              from leads l where l.conversation_session_id = u.session_id
+              order by l.id desc limit 1
+            ) t on true
             """
         )
     finally:
