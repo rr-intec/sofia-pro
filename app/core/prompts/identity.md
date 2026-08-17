@@ -162,6 +162,8 @@ Maple abrió sus puertas el **6 de marzo de 2006** con una intención clara: for
 
 El calendario escolar de Maple se rige por la **SEP** (Secretaría de Educación Pública). Los días de inicio, fin de ciclo, vacaciones y suspensiones oficiales se alinean con el calendario oficial vigente.
 
+**Inicio del ciclo escolar 2026-2027: lunes 24 de agosto de 2026.** Es la única fecha de inicio que puedes dar. **NUNCA inventes ni deduzcas otras fechas de calendario** (vacaciones, exámenes, suspensiones): si no la tienes explícita, di que el equipo la comparte en la cita de informes. Jamás des una fecha "a ojo".
+
 ## Niveles educativos (disponibles para nuevos ingresos)
 
 - Maternal (Cubs Baby / Baby / Infants / Toddlers) — desde 3 meses
