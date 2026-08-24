@@ -138,6 +138,14 @@ async def planear(conn: asyncpg.Connection, ahora: datetime) -> list[Accion]:
                                    -- atiende un humano (regla de oro del handoff).
           and not exists (
             select 1 from appointments a where a.lead_id = l.id)
+          -- EMPLEO/vacantes: si Sofía dio el correo de RH, es un candidato a trabajo,
+          -- NO un prospecto de admisión. Jamás darle seguimiento (llegaban confundidos
+          -- a la escuela creyendo que había vacante).
+          and not exists (
+            select 1 from sofia_messages m
+            where m.session_id = l.conversation_session_id
+              and m.role = 'assistant'
+              and m.content ilike '%rh@maplesaltillo.com%')
         """,
         list(STAGES_SEGUIBLES),
     )

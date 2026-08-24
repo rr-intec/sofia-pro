@@ -1043,6 +1043,23 @@ async def procesar_turno_agente(
     # Mete/actualiza el prospecto en el pipeline (lo crea en contacto_inicial).
     await _asegurar_lead_pipeline(session_id, canal, turn_number)
 
+    # Caso EMPLEO / vacantes: si Sofía dio el correo de RH, NO es un prospecto de
+    # admisión. Lo marcamos 'no_aplica' para sacarlo del pipeline y —sobre todo— del
+    # SEGUIMIENTO: un candidato a trabajo recibía el toque "¿qué te pareció lo que
+    # platicamos?", lo malinterpretaba como que había vacante y llegaba a la escuela.
+    if "rh@maplesaltillo.com" in final_text.lower():
+        try:
+            lead = await get_lead_by_session(session_id)
+            if lead is not None and lead.stage in (
+                "contacto_inicial",
+                "seguimiento_1",
+                "seguimiento_2",
+                "seguimiento_3",
+            ):
+                await update_lead(lead.id, {"stage": "no_aplica"})
+        except Exception as exc:  # best-effort — nunca romper el turno
+            log.warning("clasificar empleo->no_aplica falló", extra={"error": str(exc)})
+
     latency_ms = int((time.monotonic() - t0) * 1000)
     cost = calculate_cost(
         model,
