@@ -850,14 +850,26 @@ async def _tool_agendar_visita(inp: dict[str, Any], *, session_id: str, canal: C
     return _texto_confirmacion(dt=dt, campus=campus, correo_enviado=correo, reagendada=False)
 
 
+_DATO_CRITICO_RE = re.compile(r"@\w|https?://|\d[\d ()\-]{6,}\d")
+
+
 def _acortar_respuesta(txt: str, max_par: int = 3) -> str:
     """Tope duro de longitud: si hay más de `max_par` párrafos, conserva los primeros y
     el ÚLTIMO (que suele ser la pregunta/CTA hacia la cita). El modelo insiste en
-    respuestas largas al describir niveles aunque el prompt pida brevedad."""
+    respuestas largas al describir niveles aunque el prompt pida brevedad.
+
+    EXCEPCIÓN: nunca descarta un párrafo con un DATO CRÍTICO (teléfono, correo o link).
+    Recortar ahí borraba justo el dato que el papá pidió (p. ej. Sofía decía "aquí van
+    los teléfonos de recepción:" y el número desaparecía)."""
     pars = [p for p in re.split(r"\n\s*\n", txt) if p.strip()]
     if len(pars) <= max_par:
         return txt
-    return "\n\n".join(pars[: max_par - 1] + [pars[-1]])
+    conservar = set(range(max_par - 1))          # primeros
+    conservar.add(len(pars) - 1)                  # último (CTA)
+    for i, p in enumerate(pars):                  # datos críticos, siempre
+        if _DATO_CRITICO_RE.search(p):
+            conservar.add(i)
+    return "\n\n".join(pars[i] for i in sorted(conservar))
 
 
 async def _tool_escalar_a_ventas(
