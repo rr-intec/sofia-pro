@@ -467,6 +467,57 @@ async def reactivar_lead(
     }
 
 
+def _sid_de_identificador(ident: str) -> str:
+    """session_id de la conversación a partir del identificador de la blocklist."""
+    return f"whatsapp:{ident}" if ident.endswith("@lid") else f"whatsapp:{ident}@s.whatsapp.net"
+
+
+@router.get("/humano")
+async def humano_lista(
+    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+) -> list[dict[str, Any]]:
+    """Lista COMPLETA de contactos silenciados (blocklist 'humano'), para administrarla
+    desde el panel."""
+    _check_admin(x_admin_key)
+    return await get_repository().listar_humano()
+
+
+class HumanoIn(BaseModel):
+    identificador: str
+
+
+@router.post("/humano/silenciar")
+async def humano_silenciar(
+    body: HumanoIn,
+    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+) -> dict[str, Any]:
+    """Silencia un contacto: lo agrega a la blocklist 'humano' (Sofía deja de
+    responderle). Basta con estar en la lista, sin tocar bot_activo."""
+    _check_admin(x_admin_key)
+    ident = (body.identificador or "").strip()
+    if not ident:
+        raise HTTPException(status_code=400, detail="identificador requerido")
+    await get_repository().agregar_a_humano(ident)
+    return {"ok": True, "identificador": ident}
+
+
+@router.post("/humano/activar")
+async def humano_activar(
+    body: HumanoIn,
+    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+) -> dict[str, Any]:
+    """Activa un contacto: lo saca de la blocklist y enciende el bot en su chat, para
+    que Sofía vuelva a responderle."""
+    _check_admin(x_admin_key)
+    ident = (body.identificador or "").strip()
+    if not ident:
+        raise HTTPException(status_code=400, detail="identificador requerido")
+    repo = get_repository()
+    await repo.quitar_de_humano(ident)
+    await repo.set_bot_active(_sid_de_identificador(ident), True, atendido_por="bot")
+    return {"ok": True, "identificador": ident}
+
+
 @router.get("/conversaciones/sin-concluir")
 async def conversaciones_sin_concluir(
     x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),

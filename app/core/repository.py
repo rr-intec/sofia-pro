@@ -172,6 +172,74 @@ class Repository:
                 extra={"status": resp.status_code, "body": resp.text[:200]},
             )
 
+    async def agregar_a_humano(self, identificador: str, motivo: str = "silenciado manual") -> None:
+        """Agrega un número a la lista 'solo humano' (silenciar): Sofía deja de
+        responderle. Idempotente (upsert por identificador)."""
+        if not identificador:
+            return
+        resp = await self.client.post(
+            "/whatsapp_humano",
+            params={"on_conflict": "identificador"},
+            headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
+            json={"identificador": identificador, "motivo": motivo},
+        )
+        if resp.status_code >= 400:
+            log.warning(
+                "agregar_a_humano failed",
+                extra={"status": resp.status_code, "body": resp.text[:200]},
+            )
+
+    async def listar_humano(self) -> list[dict[str, Any]]:
+        """Lista COMPLETA de la 'blocklist' humano (todos los contactos silenciados),
+        enriquecida con el nombre del contacto si lo tenemos. Para administrarla desde
+        el panel."""
+        out: list[dict[str, Any]] = []
+        off = 0
+        while True:
+            resp = await self.client.get(
+                "/whatsapp_humano",
+                params={
+                    "select": "identificador,motivo,updated_at",
+                    "order": "updated_at.desc",
+                    "limit": "1000",
+                    "offset": str(off),
+                },
+            )
+            resp.raise_for_status()
+            b = resp.json()
+            out += b
+            if len(b) < 1000:
+                break
+            off += 1000
+        # Nombres desde whatsapp_contactos (best-effort).
+        nombres: dict[str, str] = {}
+        try:
+            rc = await self.client.get(
+                "/whatsapp_contactos",
+                params={"select": "identificador,nombre_guardado,pushname", "limit": "3000"},
+            )
+            if rc.status_code < 400:
+                for c in rc.json():
+                    n = (c.get("nombre_guardado") or c.get("pushname") or "").strip()
+                    if n:
+                        nombres[c["identificador"]] = n
+        except Exception:  # noqa: BLE001
+            pass
+        filas = []
+        for f in out:
+            ident = f["identificador"]
+            num = "".join(ch for ch in ident.split("@")[0] if ch.isdigit())
+            filas.append(
+                {
+                    "identificador": ident,
+                    "numero": num,
+                    "nombre": nombres.get(num) or nombres.get(ident),
+                    "motivo": f.get("motivo"),
+                    "updated_at": f.get("updated_at"),
+                }
+            )
+        return filas
+
     async def ultimo_mensaje_usuario(self, session_id: str) -> str:
         """Contenido del último mensaje del usuario (para reactivar/responder)."""
         resp = await self.client.get(
