@@ -280,9 +280,9 @@ def render_confirmation_message(
     direccion = campus.direccion_legible() if campus else "te paso la dirección por separado"
 
     encabezado = (
-        f"¡Listo, {nombre_papa}! Lily confirmó tu cita de informes 🎉"
+        f"¡Listo, {nombre_papa}! Fabi Hernández confirmó tu cita de informes 🎉"
         if nombre_papa
-        else "¡Listo! Lily confirmó tu cita de informes 🎉"
+        else "¡Listo! Fabi Hernández confirmó tu cita de informes 🎉"
     )
     lineas: list[str] = [
         encabezado,

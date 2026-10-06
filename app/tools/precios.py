@@ -14,6 +14,17 @@ log = logging.getLogger(__name__)
 
 CICLO_ACTUAL = "2026-2027"
 
+# Ciclo ya iniciado (decisión Gaby, oct 2026): la tabla de colegiaturas quedó
+# desactualizada porque los costos se cobran PROPORCIONALES al mes de ingreso.
+# Sofía ya NO da montos: difiere el detalle a la cita de informes. Este texto lo
+# emite el CÓDIGO (igual que antes emitía las cifras), así ningún motor inventa números.
+COSTOS_DIFERIDO_MSG = (
+    "Como el ciclo escolar ya comenzó, los costos se ajustan de forma proporcional al "
+    "mes en que ingresa tu peque, así que el detalle exacto te lo damos en la cita de "
+    "informes. Ahí te explicamos todos los costos y resolvemos tus dudas con calma. "
+    "¿Te gustaría que agendemos una visita esta semana o la próxima?"
+)
+
 
 @dataclass(frozen=True)
 class PrecioResult:

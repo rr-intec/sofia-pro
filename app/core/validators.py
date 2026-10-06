@@ -228,7 +228,7 @@ _CONFIRMA_CITA_RE = re.compile(
     r"te\s+agendo\s+para|"
     r"tu\s+cita\s+(?:es|ser[áa]|qued[óo]|est[áa]\s+confirmada|qued[óo]\s+agendada)|"
     r"te\s+confirmo\s+(?:tu|la)\s+(?:cita|visita)|"
-    r"lily\s+te\s+(?:confirma|comparte\s+la\s+direcci[óo]n)|"
+    r"(?:lily|fabi)\s+te\s+(?:confirma|comparte\s+la\s+direcci[óo]n)|"
     r"te\s+esperamos\s+el\s+\w+|"
     r"nos\s+vemos\s+el\s+(?:lunes|martes|mi[ée]rcoles|miercoles|jueves|viernes|s[áa]bado|sabado|domingo)",
     re.IGNORECASE,

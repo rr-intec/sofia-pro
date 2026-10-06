@@ -45,7 +45,7 @@ TOQUE2 = (
 )
 # Guía para Lili (se guarda como nota en el lead; ella manda su nota de voz).
 TOQUE3_GUIA_LILI = (
-    "Hola{n}, soy Lili de Maple 💛 Con mucho gusto te acompaño en el proceso. Si tienes "
+    "Hola{n}, soy Fabi de Maple 💛 Con mucho gusto te acompaño en el proceso. Si tienes "
     "cualquier duda o quieres que te aparte un espacio para tu visita, aquí estoy para "
     "ayudarte."
 )

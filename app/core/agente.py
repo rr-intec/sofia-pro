@@ -53,7 +53,7 @@ from app.tools.becas import get_becas
 from app.tools.campus import get_campus_by_id, get_campus_para_nivel
 from app.tools.estancias import get_estancias, render_estancias_bloque
 from app.tools.horarios import get_horario
-from app.tools.precios import get_precio
+from app.tools.precios import COSTOS_DIFERIDO_MSG
 
 log = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ base de conocimiento (KB) que viene abajo.
 - TÚ llevas la conversación: natural, con repreguntas, sin guiones rígidos y SIN entrar en \
 loop. Si el papá insiste o repregunta, AVANZA con información nueva — jamás repitas la misma \
 frase ni des respuestas muertas.
-- Conduce con calidez hacia una **cita de informes** con Lily, pero sin presionar: el agendado \
+- Conduce con calidez hacia una **cita de informes** con Fabi Hernández (atención a familias), pero sin presionar: el agendado \
 es consecuencia natural de que el papá entienda lo que elige.
 - **Contesta primero, empuja después.** Si el papá hizo una pregunta directa y respondible (con \
 KB o tools), RESPÓNDELA en ese mismo turno ANTES de ofrecer fechas o empujar la cita. Nunca la \
@@ -114,8 +114,9 @@ mismo nombre como papá y como hijo** salvo que lo confirme. Llama `dias_disponi
 **ofrece el día JUNTO CON sus horarios concretos en UN SOLO mensaje** (ej. "Tenemos el martes 8 \
 a las 9:00, 10:00 u 11:00 a.m. — ¿cuál te acomoda?"), NO en dos mensajes separados. Copia los \
 horarios TAL CUAL te los da la tool. Si el papá dice que **ninguna** de esas opciones le sirve, \
-NO insistas ni sigas ofreciendo: dile que **Lily lo contactará directamente** para agendar sin \
-problema y captura su WhatsApp y correo. Cuando el papá elija día y hora, llama `agendar_visita`. \
+NO insistas: **pídele que te diga el día y la hora que mejor le acomoden** y busca acomodarlo. Si \
+pide **tarde o sábado**, dile que **Miss Fabi Hernández, de atención a familias, lo contactará \
+directamente** para coordinarlo, y captura su WhatsApp y correo. Cuando el papá elija día y hora, llama `agendar_visita`. \
 Al confirmar la cita, **incluye SIEMPRE la dirección del campus y el link de Google Maps** que te \
 devuelve la tool (cópialo tal cual), y avísale que le llegó un correo de confirmación.
 
@@ -298,10 +299,10 @@ TOOLS_SPEC: list[dict[str, Any]] = [
     {
         "name": "consultar_costos",
         "description": (
-            "Devuelve la colegiatura y cuotas REALES de un nivel (desde la BD). "
-            "Para primaria, pasa el grado (1-6) para distinguir baja (1-3) de alta (4-6); "
-            "si no lo sabes aún, se devuelven ambas. Usa desglose=true cuando el papá pida "
-            "el detalle completo de gastos iniciales (inscripción, seguros, total, 'qué más se paga')."
+            "Úsala cuando el papá pregunte por costos/colegiatura/precios. Como el ciclo "
+            "escolar ya comenzó, los costos son PROPORCIONALES al mes de ingreso: esta tool "
+            "devuelve el mensaje oficial a transmitir (difiere el detalle a la cita de informes). "
+            "YA NO devuelve montos; nunca inventes cifras."
         ),
         "input_schema": {
             "type": "object",
@@ -447,17 +448,9 @@ def _subniveles_horario(nivel: str, grado: int | None) -> list[str]:
 
 
 async def _tool_consultar_costos(inp: dict[str, Any]) -> str:
-    nivel = inp.get("nivel", "")
-    grado = inp.get("grado")
-    desglose = bool(inp.get("desglose"))
-    bloques: list[str] = []
-    for sub in _subniveles_precio(nivel, grado):
-        precio = await get_precio(sub)
-        if precio:
-            bloques.append(precio.bloque_gastos_completo() if desglose else precio.bloque_costos())
-    if not bloques:
-        return "No tengo el precio de ese nivel a la mano en este momento. Defiérelo con honestidad."
-    return "\n\n".join(bloques)
+    # Ciclo ya iniciado (decisión Gaby oct-2026): los costos son proporcionales al mes
+    # de ingreso y se detallan en la cita de informes. Sofía ya NO da montos.
+    return COSTOS_DIFERIDO_MSG
 
 
 async def _tool_consultar_horario(inp: dict[str, Any]) -> str:
@@ -507,7 +500,7 @@ async def _tool_consultar_campus(inp: dict[str, Any]) -> str:
 async def _tool_consultar_becas(_inp: dict[str, Any]) -> str:
     becas = await get_becas()
     if not becas:
-        return "No tengo el detalle de becas a la mano. Defiérelo: lo revisa Lily en la visita."
+        return "No tengo el detalle de becas a la mano. Defiérelo: lo revisa nuestro equipo en la visita."
     lineas = []
     for b in becas:
         pct = f" ({b.porcentaje:.0f}%)" if b.porcentaje is not None else ""
@@ -521,7 +514,8 @@ async def _tool_consultar_becas(_inp: dict[str, Any]) -> str:
 async def _tool_dias_disponibles_visita(_inp: dict[str, Any]) -> str:
     _FALLBACK = (
         "No tengo horarios libres a la mano ahora. NO inventes horarios: dile al papá que "
-        "Lily lo contactará directamente para agendar, y captura su WhatsApp y correo."
+        "Miss Fabi Hernández, de atención a familias, lo contactará directamente para agendar, "
+        "y captura su WhatsApp y correo."
     )
     dias = await proximos_dias_habiles(cantidad=3)
     if not dias:
@@ -544,8 +538,9 @@ async def _tool_dias_disponibles_visita(_inp: dict[str, Any]) -> str:
         "(día + sus horarios juntos), sin cambiar el número de día ni inventar horas:\n"
         + "\n".join(bloques)
         + "\nCuando el papá elija, pasa ese dia_iso y la hora TAL CUAL a agendar_visita. "
-        "Si el papá dice que NINGUNA opción le sirve, NO insistas ni ofrezcas más: dile que "
-        "Lily lo contactará directamente para agendar sin problema, y captura su WhatsApp y correo."
+        "Si el papá dice que NINGUNA opción le sirve, NO insistas: pídele que te diga el día y la "
+        "hora que mejor le acomoden y busca acomodarlo. Si pide tarde o sábado, dile que Miss Fabi "
+        "Hernández, de atención a familias, lo contactará directamente para coordinarlo, y captura su WhatsApp y correo."
     )
 
 
@@ -794,7 +789,7 @@ async def _tool_agendar_visita(inp: dict[str, Any], *, session_id: str, canal: C
     if lead_id is None:
         return (
             "No pude registrar la cita en el sistema en este momento. Ofrece tomar sus datos "
-            "para que Lily lo contacte directamente y confirme."
+            "para que Miss Fabi Hernández, de atención a familias, lo contacte directamente y confirme."
         )
 
     notas = (
@@ -806,8 +801,8 @@ async def _tool_agendar_visita(inp: dict[str, Any], *, session_id: str, canal: C
     )
     if appt_id is None:
         return (
-            "No pude crear la cita en el sistema. Ofrece tomar sus datos para que Lily lo "
-            "contacte y confirme la visita."
+            "No pude crear la cita en el sistema. Ofrece tomar sus datos para que Miss Fabi "
+            "Hernández, de atención a familias, lo contacte y confirme la visita."
         )
 
     # Avanzar el stage a 'cita_agendada' + eventos (para el panel). Best-effort.

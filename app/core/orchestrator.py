@@ -84,7 +84,7 @@ from app.tools.campus import get_campus_para_nivel
 from app.tools.estancias import get_estancias, render_estancias_bloque
 from app.tools.horarios import get_horario
 from app.tools.niveles import consultar_edades_de_nivel
-from app.tools.precios import get_precio, get_todos_precios
+from app.tools.precios import COSTOS_DIFERIDO_MSG
 
 log = logging.getLogger(__name__)
 
@@ -217,14 +217,14 @@ def _menciona_multiples_niveles(mensaje: str, capt: Any) -> bool:
     return False
 
 
-_DEFER_LILI = "Ese dato te lo confirma Miss Lili en la cita 😊"
+_DEFER_LILI = "Ese dato te lo confirma Miss Fabi en la cita 😊"
 
 # ANTI-LOOP: cuando el papá re-pregunta algo que no pudimos detallar, NO repetir el mismo
 # bloque (queja #1 de los papás simulados) → ESCALAR con Lily / ofrecer la visita.
 _ESCALACION_LOOP = (
     "Veo que esto te importa y no quiero darte vueltas 🙏 Para darte el dato exacto y que "
-    "resuelvas todo al instante, lo mejor es que te conecte con Lily, de nuestro equipo de "
-    "admisiones. ¿Me compartes tu nombre y tu WhatsApp para que te contacte hoy mismo? O si "
+    "resuelvas todo al instante, lo mejor es que te conecte con Miss Fabi Hernández, de nuestra "
+    "área de atención a familias. ¿Me compartes tu nombre y tu WhatsApp para que te contacte hoy mismo? O si "
     "prefieres, agendamos una visita y ahí te explican cada detalle. 😊"
 )
 
@@ -551,38 +551,14 @@ async def _construir_oferta(
 ) -> list[str]:
     """Líneas con las cifras EXACTAS de costo/horario/estancia, emitidas por el
     CÓDIGO desde las tablas. Si no se puede resolver el nivel/grado, emite una
-    línea que pide el dato o defiere a Miss Lili — NUNCA un número inventado."""
+    línea que pide el dato o defiere a Miss Fabi — NUNCA un número inventado."""
     lineas: list[str] = []
 
     if "costos" in tipos:
-        nivel = precio_nivel_de_estado(estado)
-        # ¿pide el DESGLOSE/total/cuotas extra? → damos el detalle completo (no evadir, era
-        # el loop #1: "cuánto son las cuotas/el seguro/el total/qué más se paga/con todo").
-        pide_desglose = bool(_GASTOS_DESGLOSE_RE.search(mensaje))
-        if nivel:
-            p = await get_precio(nivel)
-            if p:
-                lineas.append(p.bloque_gastos_completo() if pide_desglose else f"💰 {p.bloque_costos()}")
-            else:
-                lineas.append(f"💰 {_DEFER_LILI}")
-        else:
-            # No se pudo resolver el nivel exacto. NUNCA volcar la tabla cruda con las
-            # claves internas de BD ('primaria_baja' $6,100; 'primaria_alta' $6,300) — el
-            # papá no debe ver eso (queja real de Gaby). Pedimos el dato en humano:
-            #  - Primaria sin grado → el costo difiere por grado → pedir el grado.
-            #  - Sin nivel claro (o varios hijos) → pedir el nivel.
-            nivel_act = estado.estado_capturado.nivel_buscado_actual
-            if nivel_act and nivel_act.value == "primaria":
-                estado.estado_capturado.pendiente_grado_costos = True
-                lineas.append(
-                    "💰 El costo de Primaria depende del grado. ¿En qué grado va tu "
-                    "peque (1° a 3° o 4° a 6°)?"
-                )
-            else:
-                lineas.append(
-                    "💰 Con gusto te paso el costo. ¿Para qué nivel es? "
-                    "1️⃣ Maternal · 2️⃣ Kinder · 3️⃣ Primaria · 4️⃣ Secundaria"
-                )
+        # Ciclo ya iniciado: los costos son PROPORCIONALES al mes de ingreso y se
+        # detallan en la cita de informes. Ya NO damos montos (tabla desactualizada,
+        # decisión Gaby oct-2026). No resolvemos nivel/grado para costos: se difiere igual.
+        lineas.append(COSTOS_DIFERIDO_MSG)
 
     if "horario" in tipos:
         sub, necesita_grado = horario_subnivel_de_estado(estado)
@@ -1317,7 +1293,7 @@ async def procesar_turno(
         tool_hint_lines = [
             "[DATO OFICIAL del sistema — úsalo EXACTO. NO cambies ni inventes números "
             "de costo/horario/estancia: si un número no está aquí, defiérelo a Miss "
-            "Lili, NO lo inventes:]"
+            "Fabi, NO lo inventes:]"
         ]
         for tool_name, data in tools_data.items():
             tool_hint_lines.append(f"- {tool_name}: {data}")

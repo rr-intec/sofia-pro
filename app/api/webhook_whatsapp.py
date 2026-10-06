@@ -365,9 +365,10 @@ def _es_lead_de_anuncio(data: dict[str, Any]) -> bool:
     return _busca(data.get("message"))
 
 
-# Menciones a Lily (o su equipo por nombre) → señal fuerte de que el papá ya viene
-# hablando con una persona, no con Sofía.
-_RE_HUMANO = re.compile(r"lil[iy]|lilian|miss\s+lil", re.IGNORECASE)
+# Menciones a la persona de atención a familias por nombre (Fabi Hernández, o la
+# anterior Lily en chats viejos) → señal fuerte de que el papá ya viene hablando con
+# una persona, no con Sofía.
+_RE_HUMANO = re.compile(r"lil[iy]|lilian|miss\s+lil|fabi(?:ola)?|miss\s+fabi|hern[áa]ndez", re.IGNORECASE)
 
 _CLASIF_CONTINUACION = (
     "Eres un clasificador para una escuela. Te doy el/los PRIMER(OS) mensaje(s) que "

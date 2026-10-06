@@ -566,7 +566,7 @@ async def handle_appointment_intent(
         opciones_texto = formato_opciones_dia(dias_opciones, now=now) if dias_opciones else None
         capt.opciones_dia_propuestas = [d.date().isoformat() for d in dias_opciones]
         horario_linea = (
-            f" El horario REAL de Lily es: {resumen}. NUNCA digas 'todos los días' "
+            f" El horario REAL de atención es: {resumen}. NUNCA digas 'todos los días' "
             f"ni inventes disponibilidad; ofrece SOLO dentro de ese horario."
             if resumen
             else ""
@@ -621,10 +621,10 @@ async def handle_appointment_intent(
                     f"{dia_resuelto} ya no es posible (hoy ya pasó el horario de atención "
                     f"o ese día ya pasó)"
                 ),
-                "dia_no_laborable": f"ese día ({dia_resuelto}) Lily no atiende",
+                "dia_no_laborable": f"ese día ({dia_resuelto}) no hay atención",
                 "slot_ocupado": f"ese día ({dia_resuelto}) ya está lleno",
             }.get(eval_dia.reason, f"{dia_resuelto} no está disponible")
-            horario = f" Horario real de Lily: {eval_dia.resumen}." if eval_dia.resumen else ""
+            horario = f" Horario de atención: {eval_dia.resumen}." if eval_dia.resumen else ""
             # El CÓDIGO re-pide el día (solo lun-vie 8-15), nunca fin de semana.
             motivo_corto = {
                 "fecha_pasada": "Ese día ya no es posible.",
@@ -651,7 +651,7 @@ async def handle_appointment_intent(
         horas_linea = ""
         if eval_dia is not None and eval_dia.available and eval_dia.alternativas:
             horas_linea = (
-                f" Ese día Lily tiene libre: {_formatear_horas(eval_dia.alternativas[:6])}. "
+                f" Ese día hay libre: {_formatear_horas(eval_dia.alternativas[:6])}. "
                 f"Ofrécele esas, NO inventes otras."
             )
         resumen_cap = _resumen_capturado(estado, fecha_slot=fecha_slot, hora_slot=None)
@@ -714,7 +714,7 @@ async def handle_appointment_intent(
 
     if not avail.available:
         alts_str = _formatear_alternativas(avail.alternativas)
-        horario = f" Horario real de Lily: {avail.resumen}." if avail.resumen else ""
+        horario = f" Horario de atención: {avail.resumen}." if avail.resumen else ""
         # FIX (2026-06-02): cuando el día/hora no sirve, descartar el slot para no
         # reofrecer lo mismo, y dar mensaje CLARO + alternativa (nada de "no sé").
         if avail.reason != "supabase_error":
@@ -734,7 +734,7 @@ async def handle_appointment_intent(
             msg_col = render_pregunta_campo("dia", horario=horario_lv, motivo="Ese día ya pasó.")
         elif avail.reason == "dia_no_laborable":
             hint = (
-                f"[FLUJO AGENDADO — ese día ({fecha_humana}) Lily NO atiende.{horario} "
+                f"[FLUJO AGENDADO — ese día ({fecha_humana}) no hay atención.{horario} "
                 f"Propón EXACTAMENTE estas alternativas, sin inventar otras: {alts_str}. "
                 f"Una sola pregunta breve: '¿te queda alguna de estas?']"
             )

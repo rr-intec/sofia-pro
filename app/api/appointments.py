@@ -284,7 +284,7 @@ async def reject_appointment(
         if session_id:
             fecha_humana_nueva = _formato_fecha_humana(nueva_dt)
             texto = (
-                f"Hola, Lily propone reagendar tu visita para {fecha_humana_nueva}. "
+                f"Hola, Miss Fabi Hernández propone reagendar tu visita para {fecha_humana_nueva}. "
                 f"¿Te queda bien ese horario?"
             )
             message_sent = await send_message_to_session(session_id, texto)
